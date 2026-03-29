@@ -518,3 +518,114 @@ func AdminAdjustUserSubscription(c *gin.Context) {
 	}
 	common.ApiSuccess(c, nil)
 }
+
+// AdminGetUserSubscriptionDetail 管理员查看指定用户的订阅使用详情
+func AdminGetUserSubscriptionDetail(c *gin.Context) {
+	userId, _ := strconv.Atoi(c.Param("id"))
+	if userId <= 0 {
+		common.ApiErrorMsg(c, "无效的用户ID")
+		return
+	}
+
+	var subs []model.UserSubscription
+	err := model.DB.Where("user_id = ?", userId).
+		Order("end_time desc, id desc").
+		Find(&subs).Error
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	now := common.GetTimestamp()
+	today := time.Now().Format("2006-01-02")
+	items := make([]SubscriptionDetailItem, 0, len(subs))
+
+	for _, sub := range subs {
+		subCopy := sub
+		plan, planErr := model.GetSubscriptionPlanById(sub.PlanId)
+
+		item := SubscriptionDetailItem{
+			Subscription: &subCopy,
+			Status:       sub.Status,
+		}
+
+		if planErr == nil && plan != nil {
+			item.PlanTitle = plan.Title
+			item.PlanSubtitle = plan.Subtitle
+			item.QuotaPerCycle = sub.AmountTotal
+			item.QuotaPerCycleDisplay = float64(sub.AmountTotal) / common.QuotaPerUnit
+			item.QuotaUsed = sub.AmountUsed
+			item.ResetPeriod = plan.QuotaResetPeriod
+			item.ResetPeriodLabel = resetPeriodLabel(plan.QuotaResetPeriod)
+			item.NextResetTime = sub.NextResetTime
+
+			if sub.AmountTotal > 0 {
+				item.QuotaRemain = sub.AmountTotal - sub.AmountUsed
+				if item.QuotaRemain < 0 {
+					item.QuotaRemain = 0
+				}
+				item.UsagePercent = float64(sub.AmountUsed) / float64(sub.AmountTotal) * 100
+				if item.UsagePercent > 100 {
+					item.UsagePercent = 100
+				}
+			} else {
+				item.QuotaRemain = -1
+				item.UsagePercent = 0
+			}
+
+			if sub.NextResetTime > now {
+				item.NextResetCountdown = sub.NextResetTime - now
+			}
+
+			item.ManualResetLimit = plan.ManualDailyResetLimit
+			item.ManualResetEnabled = plan.ManualDailyResetLimit > 0 && sub.AmountTotal > 0
+
+			if item.ManualResetEnabled {
+				if sub.ManualResetDate == today {
+					item.ManualResetRemaining = plan.ManualDailyResetLimit - sub.ManualResetCount
+					if item.ManualResetRemaining < 0 {
+						item.ManualResetRemaining = 0
+					}
+				} else {
+					item.ManualResetRemaining = plan.ManualDailyResetLimit
+				}
+			}
+
+			if plan.WeeklyQuotaLimit > 0 && model.NormalizeResetPeriod(plan.QuotaResetPeriod) == model.SubscriptionResetDaily {
+				item.WeeklyQuotaEnabled = true
+				item.WeeklyQuotaLimit = plan.WeeklyQuotaLimit
+				item.WeeklyQuotaLimitDisplay = float64(plan.WeeklyQuotaLimit) / common.QuotaPerUnit
+				weeklyUsed := sub.WeeklyQuotaUsed
+				if sub.WeeklyQuotaResetTime > 0 && sub.WeeklyQuotaResetTime <= now {
+					weeklyUsed = 0
+				}
+				item.WeeklyQuotaUsed = weeklyUsed
+				item.WeeklyQuotaRemain = plan.WeeklyQuotaLimit - weeklyUsed
+				if item.WeeklyQuotaRemain < 0 {
+					item.WeeklyQuotaRemain = 0
+				}
+				if plan.WeeklyQuotaLimit > 0 {
+					item.WeeklyUsagePercent = float64(weeklyUsed) / float64(plan.WeeklyQuotaLimit) * 100
+					if item.WeeklyUsagePercent > 100 {
+						item.WeeklyUsagePercent = 100
+					}
+				}
+				item.WeeklyQuotaResetTime = sub.WeeklyQuotaResetTime
+			}
+		}
+
+		if sub.EndTime > now {
+			item.ExpireDays = int((sub.EndTime - now) / 86400)
+		} else {
+			item.ExpireDays = 0
+		}
+
+		if sub.Status == "active" && sub.EndTime <= now {
+			item.Status = "expired"
+		}
+
+		items = append(items, item)
+	}
+
+	common.ApiSuccess(c, items)
+}

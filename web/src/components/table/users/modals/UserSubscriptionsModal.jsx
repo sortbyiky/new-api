@@ -23,13 +23,14 @@ import {
   Empty,
   Form,
   Modal,
+  Progress,
   Select,
   SideSheet,
   Space,
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
-import { IconPlusCircle } from '@douyinfe/semi-icons';
+import { IconPlusCircle, IconChevronDown, IconChevronUp } from '@douyinfe/semi-icons';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
@@ -48,6 +49,19 @@ const { Text } = Typography;
 function formatTs(ts) {
   if (!ts) return '-';
   return new Date(ts * 1000).toLocaleString();
+}
+
+function formatCountdown(seconds) {
+  if (!seconds || seconds <= 0) return '-';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (h > 24) {
+    const d = Math.floor(h / 24);
+    const rh = h % 24;
+    return `${d}天${rh}小时`;
+  }
+  if (h > 0) return `${h}小时${m}分钟`;
+  return `${m}分钟`;
 }
 
 function renderStatusTag(sub, t) {
@@ -95,6 +109,11 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const [adjustLoading, setAdjustLoading] = useState(false);
   const [adjustSub, setAdjustSub] = useState(null);
   const [adjustMode, setAdjustMode] = useState('days');
+
+  // 订阅使用详情
+  const [detailMap, setDetailMap] = useState({});
+  const [expandedSubId, setExpandedSubId] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const planTitleMap = useMemo(() => {
     const map = new Map();
@@ -159,12 +178,39 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     }
   };
 
+  const loadSubscriptionDetail = async () => {
+    if (!user?.id) return;
+    setDetailLoading(true);
+    try {
+      const res = await API.get(
+        `/api/subscription/admin/users/${user.id}/subscriptions/detail`,
+      );
+      if (res.data?.success) {
+        const items = res.data.data || [];
+        const map = {};
+        items.forEach((item) => {
+          if (item?.subscription?.id) {
+            map[item.subscription.id] = item;
+          }
+        });
+        setDetailMap(map);
+      }
+    } catch (e) {
+      // 静默失败，详情只是增强功能
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!visible) return;
     setSelectedPlanId(null);
     setCurrentPage(1);
+    setExpandedSubId(null);
+    setDetailMap({});
     loadPlans();
     loadUserSubscriptions();
+    loadSubscriptionDetail();
   }, [visible]);
 
   const handlePageChange = (page) => {
@@ -314,6 +360,122 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     }
   };
 
+  const toggleExpand = (subId) => {
+    setExpandedSubId((prev) => (prev === subId ? null : subId));
+  };
+
+  const renderDetailPanel = (detail) => {
+    if (!detail) return null;
+    const usagePercent = detail.usage_percent || 0;
+    const quotaUsedDisplay = (detail.quota_used || 0) / 500000;
+    const quotaPerCycleDisplay = detail.quota_per_cycle_display || 0;
+    const quotaRemainDisplay = detail.quota_remain >= 0 ? (detail.quota_remain / 500000) : -1;
+    const hasReset = detail.reset_period && detail.reset_period !== 'never';
+
+    return (
+      <div className='p-4 rounded-lg mt-2 mb-2' style={{ background: 'var(--semi-color-fill-0)' }}>
+        {/* 额度使用进度 */}
+        <div className='mb-4'>
+          <div className='flex justify-between items-center mb-1'>
+            <Text size='small' strong>{t('额度使用')}</Text>
+            <Text size='small' type='tertiary'>
+              {quotaRemainDisplay >= 0
+                ? `$${quotaUsedDisplay.toFixed(2)} / $${quotaPerCycleDisplay.toFixed(2)}`
+                : t('不限')}
+            </Text>
+          </div>
+          {quotaRemainDisplay >= 0 ? (
+            <Progress
+              percent={Math.min(usagePercent, 100)}
+              showInfo
+              size='large'
+              stroke={usagePercent > 80 ? '#f5222d' : usagePercent > 50 ? '#faad14' : '#52c41a'}
+              style={{ height: 8 }}
+            />
+          ) : (
+            <Text size='small' type='success'>{t('无限额度')}</Text>
+          )}
+        </div>
+
+        <div className='grid grid-cols-2 md:grid-cols-3 gap-3'>
+          {/* 重置周期 */}
+          {hasReset && (
+            <div className='p-2 rounded' style={{ background: 'var(--semi-color-bg-2)' }}>
+              <Text size='small' type='tertiary'>{t('重置周期')}</Text>
+              <div>
+                <Text size='small' strong>
+                  {detail.reset_period_label || '-'}
+                </Text>
+              </div>
+            </div>
+          )}
+
+          {/* 下次重置 */}
+          {hasReset && detail.next_reset_time > 0 && (
+            <div className='p-2 rounded' style={{ background: 'var(--semi-color-bg-2)' }}>
+              <Text size='small' type='tertiary'>{t('下次重置')}</Text>
+              <div>
+                <Text size='small' strong>
+                  {detail.next_reset_countdown > 0
+                    ? formatCountdown(detail.next_reset_countdown)
+                    : formatTs(detail.next_reset_time)}
+                </Text>
+              </div>
+            </div>
+          )}
+
+          {/* 手动重置 */}
+          {detail.manual_reset_enabled && (
+            <div className='p-2 rounded' style={{ background: 'var(--semi-color-bg-2)' }}>
+              <Text size='small' type='tertiary'>{t('手动重置')}</Text>
+              <div>
+                <Text size='small' strong>
+                  {t('剩余')} {detail.manual_reset_remaining}/{detail.manual_reset_limit} {t('次/天')}
+                </Text>
+              </div>
+            </div>
+          )}
+
+          {/* 剩余天数 */}
+          <div className='p-2 rounded' style={{ background: 'var(--semi-color-bg-2)' }}>
+            <Text size='small' type='tertiary'>{t('剩余天数')}</Text>
+            <div>
+              <Text size='small' strong
+                type={detail.expire_days <= 3 ? 'danger' : detail.expire_days <= 7 ? 'warning' : undefined}
+              >
+                {detail.expire_days > 0 ? `${detail.expire_days} ${t('天')}` : t('已过期')}
+              </Text>
+            </div>
+          </div>
+        </div>
+
+        {/* 周限额 */}
+        {detail.weekly_quota_enabled && (
+          <div className='mt-3 p-3 rounded' style={{ background: 'var(--semi-color-bg-2)' }}>
+            <div className='flex justify-between items-center mb-1'>
+              <Text size='small' strong>{t('周消耗上限')}</Text>
+              <Text size='small' type='tertiary'>
+                ${(detail.weekly_quota_used / 500000).toFixed(2)} / ${detail.weekly_quota_limit_display?.toFixed(2)}
+              </Text>
+            </div>
+            <Progress
+              percent={Math.min(detail.weekly_usage_percent || 0, 100)}
+              showInfo
+              size='large'
+              stroke={(detail.weekly_usage_percent || 0) > 80 ? '#f5222d' : '#1890ff'}
+              style={{ height: 6 }}
+            />
+            {detail.weekly_quota_reset_time > 0 && (
+              <Text size='small' type='tertiary' className='mt-1 block'>
+                {t('周限额重置')}: {formatTs(detail.weekly_quota_reset_time)}
+              </Text>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const columns = useMemo(() => {
     return [
       {
@@ -368,22 +530,38 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       {
         title: t('总额度'),
         key: 'total',
-        width: 120,
+        width: 140,
         render: (_, record) => {
           const sub = record?.subscription;
           const total = Number(sub?.amount_total || 0);
           const used = Number(sub?.amount_used || 0);
+          const detail = detailMap[sub?.id];
+          const percent = detail?.usage_percent || (total > 0 ? (used / total) * 100 : 0);
           return (
-            <Text type={total > 0 ? 'secondary' : 'tertiary'}>
-              {total > 0 ? `${used}/${total}` : t('不限')}
-            </Text>
+            <div style={{ minWidth: 100 }}>
+              {total > 0 ? (
+                <>
+                  <Text size='small' type='secondary'>
+                    ${(used / 500000).toFixed(2)} / ${(total / 500000).toFixed(2)}
+                  </Text>
+                  <Progress
+                    percent={Math.min(percent, 100)}
+                    size='small'
+                    stroke={percent > 80 ? '#f5222d' : percent > 50 ? '#faad14' : '#52c41a'}
+                    style={{ height: 4, marginTop: 2 }}
+                  />
+                </>
+              ) : (
+                <Text type='tertiary'>{t('不限')}</Text>
+              )}
+            </div>
           );
         },
       },
       {
         title: '',
         key: 'operate',
-        width: 200,
+        width: 240,
         fixed: 'right',
         render: (_, record) => {
           const sub = record?.subscription;
@@ -392,8 +570,18 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
             (sub?.end_time || 0) > 0 && (sub?.end_time || 0) < now;
           const isActive = sub?.status === 'active' && !isExpired;
           const isCancelled = sub?.status === 'cancelled';
+          const isExpanded = expandedSubId === sub?.id;
           return (
             <Space>
+              <Button
+                size='small'
+                type='primary'
+                theme='light'
+                icon={isExpanded ? <IconChevronUp /> : <IconChevronDown />}
+                onClick={() => toggleExpand(sub?.id)}
+              >
+                {t('详情')}
+              </Button>
               <Button
                 size='small'
                 type='primary'
@@ -425,7 +613,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
         },
       },
     ];
-  }, [t, planTitleMap]);
+  }, [t, planTitleMap, detailMap, expandedSubId]);
 
   return (
     <SideSheet
@@ -503,6 +691,24 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           }
           size='middle'
         />
+
+        {/* 展开的订阅使用详情 */}
+        {expandedSubId && detailMap[expandedSubId] && (
+          <div className='mt-2'>
+            <div className='flex items-center gap-2 mb-2'>
+              <Tag color='blue' size='small'>{t('使用详情')}</Tag>
+              <Text strong size='small'>
+                {detailMap[expandedSubId]?.plan_title || `#${expandedSubId}`}
+              </Text>
+              {detailMap[expandedSubId]?.plan_subtitle && (
+                <Text type='tertiary' size='small'>
+                  - {detailMap[expandedSubId].plan_subtitle}
+                </Text>
+              )}
+            </div>
+            {renderDetailPanel(detailMap[expandedSubId])}
+          </div>
+        )}
       </div>
 
       {/* 调整订阅弹窗 */}

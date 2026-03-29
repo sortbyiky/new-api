@@ -175,6 +175,12 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// 每天允许用户手动重置额度的次数上限，0 = 不允许
+	ManualDailyResetLimit int `json:"manual_daily_reset_limit" gorm:"type:int;default:0"`
+
+	// 周消耗上限（仅当 QuotaResetPeriod=daily 时生效，0 = 不限）
+	WeeklyQuotaLimit int64 `json:"weekly_quota_limit" gorm:"type:bigint;default:0"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }
@@ -249,6 +255,16 @@ type UserSubscription struct {
 
 	UpgradeGroup  string `json:"upgrade_group" gorm:"type:varchar(64);default:''"`
 	PrevUserGroup string `json:"prev_user_group" gorm:"type:varchar(64);default:''"`
+
+	// 用户当天已手动重置的次数
+	ManualResetCount int    `json:"manual_reset_count" gorm:"type:int;default:0"`
+	// 上次手动重置的日期 (格式 "2006-01-02")，用于跨天归零计数
+	ManualResetDate  string `json:"manual_reset_date" gorm:"type:varchar(10);default:''"`
+
+	// 本周已消耗额度（配合 SubscriptionPlan.WeeklyQuotaLimit 使用）
+	WeeklyQuotaUsed      int64 `json:"weekly_quota_used" gorm:"type:bigint;default:0"`
+	// 周消耗计数器下次重置时间（每周一 00:00 UTC）
+	WeeklyQuotaResetTime int64 `json:"weekly_quota_reset_time" gorm:"type:bigint;default:0"`
 
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
@@ -952,6 +968,34 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 	return tx.Save(sub).Error
 }
 
+// maybeResetWeeklyQuota 检查并在必要时重置周消耗计数器（每周一 00:00 UTC 重置）
+func maybeResetWeeklyQuota(sub *UserSubscription, now int64) {
+	if sub.WeeklyQuotaResetTime > 0 && sub.WeeklyQuotaResetTime > now {
+		return
+	}
+	t := time.Unix(now, 0).UTC()
+	weekday := int(t.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	nextMonday := t.AddDate(0, 0, 8-weekday)
+	nextMonday = time.Date(nextMonday.Year(), nextMonday.Month(), nextMonday.Day(), 0, 0, 0, 0, time.UTC)
+	sub.WeeklyQuotaUsed = 0
+	sub.WeeklyQuotaResetTime = nextMonday.Unix()
+}
+
+// calcWeeklyQuotaResetTime 计算从 now 起下周一 00:00 UTC 的时间戳
+func calcWeeklyQuotaResetTime(now int64) int64 {
+	t := time.Unix(now, 0).UTC()
+	weekday := int(t.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	nextMonday := t.AddDate(0, 0, 8-weekday)
+	nextMonday = time.Date(nextMonday.Year(), nextMonday.Month(), nextMonday.Day(), 0, 0, 0, 0, time.UTC)
+	return nextMonday.Unix()
+}
+
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
 func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
 	if userId <= 0 {
@@ -1015,6 +1059,14 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					continue
 				}
 			}
+			// 周限制检查：仅当 plan 设置了周限制且重置周期=daily 时生效
+			if plan.WeeklyQuotaLimit > 0 && NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetDaily {
+				maybeResetWeeklyQuota(&sub, now)
+				weeklyRemain := plan.WeeklyQuotaLimit - sub.WeeklyQuotaUsed
+				if weeklyRemain < amount {
+					continue
+				}
+			}
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
@@ -1038,6 +1090,13 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				return err
 			}
 			sub.AmountUsed += amount
+			// 同步递增周消耗计数
+			if plan.WeeklyQuotaLimit > 0 && NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetDaily {
+				sub.WeeklyQuotaUsed += amount
+				if sub.WeeklyQuotaResetTime == 0 {
+					sub.WeeklyQuotaResetTime = calcWeeklyQuotaResetTime(now)
+				}
+			}
 			if err := tx.Save(&sub).Error; err != nil {
 				return err
 			}
@@ -1187,6 +1246,18 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
 		}
 		sub.AmountUsed = newUsed
+		// 同步更新周消耗计数
+		if delta != 0 {
+			plan, _ := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+			if plan != nil && plan.WeeklyQuotaLimit > 0 && NormalizeResetPeriod(plan.QuotaResetPeriod) == SubscriptionResetDaily {
+				now := GetDBTimestamp()
+				maybeResetWeeklyQuota(&sub, now)
+				sub.WeeklyQuotaUsed += delta
+				if sub.WeeklyQuotaUsed < 0 {
+					sub.WeeklyQuotaUsed = 0
+				}
+			}
+		}
 		return tx.Save(&sub).Error
 	})
 }

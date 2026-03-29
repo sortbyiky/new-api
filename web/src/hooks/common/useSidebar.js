@@ -42,6 +42,8 @@ export const DEFAULT_ADMIN_CONFIG = {
   personal: {
     enabled: true,
     topup: true,
+    'my-subscription': true,
+    'usage-stats': true,
     personal: true,
   },
   admin: {
@@ -50,6 +52,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     models: true,
     deployment: true,
     redemption: true,
+    'quota-card': true,
     user: true,
     subscription: true,
     setting: true,

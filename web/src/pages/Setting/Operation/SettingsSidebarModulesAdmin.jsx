@@ -56,6 +56,8 @@ export default function SettingsSidebarModulesAdmin(props) {
     personal: {
       enabled: true,
       topup: true,
+      'my-subscription': true,
+      'usage-stats': true,
       personal: true,
     },
     admin: {
@@ -64,6 +66,7 @@ export default function SettingsSidebarModulesAdmin(props) {
       models: true,
       deployment: true,
       redemption: true,
+      'quota-card': true,
       user: true,
       subscription: true,
       setting: true,
@@ -117,6 +120,8 @@ export default function SettingsSidebarModulesAdmin(props) {
       personal: {
         enabled: true,
         topup: true,
+        'my-subscription': true,
+        'usage-stats': true,
         personal: true,
       },
       admin: {
@@ -125,6 +130,7 @@ export default function SettingsSidebarModulesAdmin(props) {
         models: true,
         deployment: true,
         redemption: true,
+        'quota-card': true,
         user: true,
         subscription: true,
         setting: true,
@@ -187,13 +193,14 @@ export default function SettingsSidebarModulesAdmin(props) {
             midjourney: true,
             task: true,
           },
-          personal: { enabled: true, topup: true, personal: true },
+          personal: { enabled: true, topup: true, 'my-subscription': true, 'usage-stats': true, personal: true },
           admin: {
             enabled: true,
             channel: true,
             models: true,
             deployment: true,
             redemption: true,
+            'quota-card': true,
             user: true,
             subscription: true,
             setting: true,
@@ -242,6 +249,16 @@ export default function SettingsSidebarModulesAdmin(props) {
       modules: [
         { key: 'topup', title: t('钱包管理'), description: t('余额充值管理') },
         {
+          key: 'my-subscription',
+          title: t('我的订阅'),
+          description: t('用户订阅管理'),
+        },
+        {
+          key: 'usage-stats',
+          title: t('消费统计'),
+          description: t('使用消费记录'),
+        },
+        {
           key: 'personal',
           title: t('个人设置'),
           description: t('个人信息设置'),
@@ -269,6 +286,11 @@ export default function SettingsSidebarModulesAdmin(props) {
           key: 'redemption',
           title: t('兑换码管理'),
           description: t('兑换码生成管理'),
+        },
+        {
+          key: 'quota-card',
+          title: t('额度卡管理'),
+          description: t('额度卡生成分发'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
         {

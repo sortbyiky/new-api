@@ -49,6 +49,9 @@ const routerMap = {
   deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
+  'quota-card': '/console/quota-card',
+  'usage-stats': '/console/usage-stats',
+  'my-subscription': '/console/my-subscription',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -130,6 +133,16 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/topup',
       },
       {
+        text: t('我的订阅'),
+        itemKey: 'my-subscription',
+        to: '/my-subscription',
+      },
+      {
+        text: t('消费统计'),
+        itemKey: 'usage-stats',
+        to: '/usage-stats',
+      },
+      {
         text: t('个人设置'),
         itemKey: 'personal',
         to: '/personal',
@@ -175,6 +188,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('额度卡管理'),
+        itemKey: 'quota-card',
+        to: '/quota-card',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

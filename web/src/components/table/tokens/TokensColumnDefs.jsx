@@ -329,6 +329,7 @@ const renderOperations = (
   manageToken,
   refresh,
   t,
+  onViewUsage,
 ) => {
   let chatsArray = [];
   try {
@@ -407,6 +408,14 @@ const renderOperations = (
       <Button
         type='tertiary'
         size='small'
+        onClick={() => onViewUsage && onViewUsage(record.id)}
+      >
+        {t('用量')}
+      </Button>
+
+      <Button
+        type='tertiary'
+        size='small'
         onClick={() => {
           setEditingToken(record);
           setShowEdit(true);
@@ -449,6 +458,7 @@ export const getTokensColumns = ({
   setEditingToken,
   setShowEdit,
   refresh,
+  onViewUsage,
 }) => {
   return [
     {
@@ -528,6 +538,7 @@ export const getTokensColumns = ({
           manageToken,
           refresh,
           t,
+          onViewUsage,
         ),
     },
   ];

@@ -17,8 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Empty } from '@douyinfe/semi-ui';
+import TokenUsageModal from './modals/TokenUsageModal';
 import CardTable from '../../common/ui/CardTable';
 import {
   IllustrationNoResult,
@@ -51,6 +52,14 @@ const TokensTable = (tokensData) => {
     t,
   } = tokensData;
 
+  const [usageTokenId, setUsageTokenId] = useState(null);
+  const [showUsageModal, setShowUsageModal] = useState(false);
+
+  const onViewUsage = useCallback((tokenId) => {
+    setUsageTokenId(tokenId);
+    setShowUsageModal(true);
+  }, []);
+
   // Get all columns
   const columns = useMemo(() => {
     return getTokensColumns({
@@ -65,6 +74,7 @@ const TokensTable = (tokensData) => {
       setEditingToken,
       setShowEdit,
       refresh,
+      onViewUsage,
     });
   }, [
     t,
@@ -78,6 +88,7 @@ const TokensTable = (tokensData) => {
     setEditingToken,
     setShowEdit,
     refresh,
+    onViewUsage,
   ]);
 
   // Handle compact mode by removing fixed positioning
@@ -94,36 +105,46 @@ const TokensTable = (tokensData) => {
   }, [compactMode, columns]);
 
   return (
-    <CardTable
-      columns={tableColumns}
-      dataSource={tokens}
-      scroll={compactMode ? undefined : { x: 'max-content' }}
-      pagination={{
-        currentPage: activePage,
-        pageSize: pageSize,
-        total: tokenCount,
-        showSizeChanger: true,
-        pageSizeOptions: [10, 20, 50, 100],
-        onPageSizeChange: handlePageSizeChange,
-        onPageChange: handlePageChange,
-      }}
-      hidePagination={true}
-      loading={loading}
-      rowSelection={rowSelection}
-      onRow={handleRow}
-      empty={
-        <Empty
-          image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
-          darkModeImage={
-            <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
-          }
-          description={t('搜索无结果')}
-          style={{ padding: 30 }}
-        />
-      }
-      className='rounded-xl overflow-hidden'
-      size='middle'
-    />
+    <>
+      <CardTable
+        columns={tableColumns}
+        dataSource={tokens}
+        scroll={compactMode ? undefined : { x: 'max-content' }}
+        pagination={{
+          currentPage: activePage,
+          pageSize: pageSize,
+          total: tokenCount,
+          showSizeChanger: true,
+          pageSizeOptions: [10, 20, 50, 100],
+          onPageSizeChange: handlePageSizeChange,
+          onPageChange: handlePageChange,
+        }}
+        hidePagination={true}
+        loading={loading}
+        rowSelection={rowSelection}
+        onRow={handleRow}
+        empty={
+          <Empty
+            image={<IllustrationNoResult style={{ width: 150, height: 150 }} />}
+            darkModeImage={
+              <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
+            }
+            description={t('搜索无结果')}
+            style={{ padding: 30 }}
+          />
+        }
+        className='rounded-xl overflow-hidden'
+        size='middle'
+      />
+      <TokenUsageModal
+        visible={showUsageModal}
+        tokenId={usageTokenId}
+        onClose={() => {
+          setShowUsageModal(false);
+          setUsageTokenId(null);
+        }}
+      />
+    </>
   );
 };
 

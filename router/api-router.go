@@ -108,6 +108,15 @@ func SetApiRouter(router *gin.Engine) {
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
+
+				// 额度卡兑换（用户端）
+				selfRoute.POST("/redeem-card", middleware.CriticalRateLimit(), controller.RedeemQuotaCard)
+				selfRoute.GET("/redemption-history", controller.GetUserRedemptionRecords)
+
+				// 消费统计（用户端）
+				selfRoute.GET("/daily-cost", controller.GetDailyCostStats)
+				selfRoute.GET("/model-stats", controller.GetModelCostStats)
+				selfRoute.GET("/usage-overview", controller.GetUserUsageOverview)
 			}
 
 			adminRoute := userRoute.Group("/")
@@ -137,12 +146,17 @@ func SetApiRouter(router *gin.Engine) {
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
 		{
-			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
-			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
-			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
-			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
-			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
-			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+		subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
+		subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
+		subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
+		subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
+		subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
+		subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+
+			// 用户订阅管理
+			subscriptionRoute.GET("/self/detail", controller.GetUserSubscriptionDetail)
+			subscriptionRoute.POST("/self/manual-reset", middleware.CriticalRateLimit(), controller.ManualResetSubscription)
+			subscriptionRoute.GET("/self/usage-history", controller.GetSubscriptionUsageHistory)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())
@@ -158,6 +172,7 @@ func SetApiRouter(router *gin.Engine) {
 			subscriptionAdminRoute.POST("/users/:id/subscriptions", controller.AdminCreateUserSubscription)
 			subscriptionAdminRoute.POST("/user_subscriptions/:id/invalidate", controller.AdminInvalidateUserSubscription)
 			subscriptionAdminRoute.DELETE("/user_subscriptions/:id", controller.AdminDeleteUserSubscription)
+			subscriptionAdminRoute.POST("/user_subscriptions/:id/adjust", controller.AdminAdjustUserSubscription)
 		}
 
 		// Subscription payment callbacks (no auth)
@@ -269,6 +284,13 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		tokenStatsRoute := apiRouter.Group("/usage/token")
+		tokenStatsRoute.Use(middleware.UserAuth())
+		{
+			tokenStatsRoute.GET("/:id/stats", controller.GetTokenUsageStats)
+			tokenStatsRoute.GET("/:id/daily", controller.GetTokenDailyCost)
+		}
+
 		redemptionRoute := apiRouter.Group("/redemption")
 		redemptionRoute.Use(middleware.AdminAuth())
 		{
@@ -279,6 +301,19 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.PUT("/", controller.UpdateRedemption)
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
+		}
+
+		quotaCardRoute := apiRouter.Group("/quota-card")
+		quotaCardRoute.Use(middleware.AdminAuth())
+		{
+			quotaCardRoute.GET("/", controller.GetQuotaCards)
+			quotaCardRoute.GET("/stats", controller.GetQuotaCardStats)
+			quotaCardRoute.POST("/", controller.CreateQuotaCard)
+			quotaCardRoute.DELETE("/:id", controller.DeleteQuotaCard)
+			quotaCardRoute.POST("/:id/revoke", controller.RevokeQuotaCardRedemption)
+			quotaCardRoute.GET("/redemptions", controller.GetRedemptionRecords)
+			quotaCardRoute.GET("/user-tokens/:userId", controller.AdminGetUserTokens)
+			quotaCardRoute.POST("/assign", controller.AdminAssignSubscription)
 		}
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)

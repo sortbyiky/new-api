@@ -97,6 +97,8 @@ const AddEditSubscriptionModal = ({
     upgrade_group: '',
     stripe_price_id: '',
     creem_product_id: '',
+    manual_daily_reset_limit: 0,
+    weekly_quota_limit: 0,
   });
 
   const buildFormValues = () => {
@@ -123,6 +125,10 @@ const AddEditSubscriptionModal = ({
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
       creem_product_id: p.creem_product_id || '',
+      manual_daily_reset_limit: Number(p.manual_daily_reset_limit || 0),
+      weekly_quota_limit: Number(
+        quotaToDisplayAmount(p.weekly_quota_limit || 0).toFixed(2),
+      ),
     };
   };
 
@@ -164,6 +170,11 @@ const AddEditSubscriptionModal = ({
           max_purchase_per_user: Number(values.max_purchase_per_user || 0),
           total_amount: displayAmountToQuota(values.total_amount),
           upgrade_group: values.upgrade_group || '',
+          manual_daily_reset_limit: Number(values.manual_daily_reset_limit || 0),
+          weekly_quota_limit:
+            values.quota_reset_period === 'daily'
+              ? displayAmountToQuota(values.weekly_quota_limit || 0)
+              : 0,
         },
       };
       if (editingPlan?.plan?.id) {
@@ -310,14 +321,26 @@ const AddEditSubscriptionModal = ({
                     <Col span={12}>
                       <Form.InputNumber
                         field='total_amount'
-                        label={t('总额度')}
+                        label={
+                          values.quota_reset_period === 'daily'
+                            ? t('每日额度')
+                            : values.quota_reset_period === 'weekly'
+                              ? t('每周额度')
+                              : values.quota_reset_period === 'monthly'
+                                ? t('每月额度')
+                                : values.quota_reset_period === 'custom'
+                                  ? t('每周期额度')
+                                  : t('总额度')
+                        }
                         required
                         min={0}
                         precision={2}
                         rules={[{ required: true, message: t('请输入总额度') }]}
-                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
-                          values.total_amount,
-                        )}`}
+                        extraText={
+                          values.quota_reset_period !== 'never'
+                            ? `${t('每个重置周期可用的额度')} · ${t('原生额度')}：${displayAmountToQuota(values.total_amount)}`
+                            : `${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(values.total_amount)}`
+                        }
                         style={{ width: '100%' }}
                       />
                     </Col>
@@ -498,6 +521,32 @@ const AddEditSubscriptionModal = ({
                         />
                       )}
                     </Col>
+                  </Row>
+
+                  <Row gutter={12} className='mt-2'>
+                    <Col span={12}>
+                      <Form.InputNumber
+                        field='manual_daily_reset_limit'
+                        label={t('每日手动重置次数')}
+                        extraText={t('用户每天可手动重置额度的次数上限，0表示不允许')}
+                        min={0}
+                        max={99}
+                        precision={0}
+                        style={{ width: '100%' }}
+                      />
+                    </Col>
+                    {values.quota_reset_period === 'daily' && (
+                      <Col span={12}>
+                        <Form.InputNumber
+                          field='weekly_quota_limit'
+                          label={t('周消耗上限')}
+                          extraText={`${t('每周最多可消耗的额度（0表示不限）')} · ${t('原生额度')}：${displayAmountToQuota(values.weekly_quota_limit)}`}
+                          min={0}
+                          precision={2}
+                          style={{ width: '100%' }}
+                        />
+                      </Col>
+                    )}
                   </Row>
                 </Card>
 

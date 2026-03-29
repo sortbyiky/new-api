@@ -21,6 +21,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Empty,
+  Form,
   Modal,
   Select,
   SideSheet,
@@ -34,6 +35,10 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { API, showError, showSuccess } from '../../../../helpers';
+import {
+  quotaToDisplayAmount,
+  displayAmountToQuota,
+} from '../../../../helpers/quota';
 import { convertUSDToCurrency } from '../../../../helpers/render';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import CardTable from '../../../common/ui/CardTable';
@@ -85,6 +90,11 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const [subs, setSubs] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  const [adjustVisible, setAdjustVisible] = useState(false);
+  const [adjustLoading, setAdjustLoading] = useState(false);
+  const [adjustSub, setAdjustSub] = useState(null);
+  const [adjustMode, setAdjustMode] = useState('days');
 
   const planTitleMap = useMemo(() => {
     const map = new Map();
@@ -245,6 +255,65 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     });
   };
 
+  const openAdjust = (sub) => {
+    setAdjustSub(sub);
+    setAdjustMode('days');
+    setAdjustVisible(true);
+  };
+
+  const submitAdjust = async (values) => {
+    if (!adjustSub?.id) return;
+    setAdjustLoading(true);
+    try {
+      const payload = {
+        adjust_days: 0,
+        set_end_time: 0,
+        set_amount_total: -1,
+        set_amount_used: -1,
+        reason: values.reason || '',
+      };
+
+      if (adjustMode === 'days') {
+        payload.adjust_days = Number(values.adjust_days || 0);
+      } else if (adjustMode === 'date') {
+        if (values.set_end_date) {
+          const ts = Math.floor(new Date(values.set_end_date).getTime() / 1000);
+          if (ts > 0) payload.set_end_time = ts;
+        }
+      }
+
+      if (values.modify_quota) {
+        payload.set_amount_total = displayAmountToQuota(
+          Number(values.set_amount_total || 0),
+        );
+      }
+
+      if (values.modify_used) {
+        payload.set_amount_used = displayAmountToQuota(
+          Number(values.set_amount_used || 0),
+        );
+      }
+
+      const res = await API.post(
+        `/api/subscription/admin/user_subscriptions/${adjustSub.id}/adjust`,
+        payload,
+      );
+      if (res.data?.success) {
+        showSuccess(t('调整成功'));
+        setAdjustVisible(false);
+        setAdjustSub(null);
+        await loadUserSubscriptions();
+        onSuccess?.();
+      } else {
+        showError(res.data?.message || t('调整失败'));
+      }
+    } catch (e) {
+      showError(t('请求失败'));
+    } finally {
+      setAdjustLoading(false);
+    }
+  };
+
   const columns = useMemo(() => {
     return [
       {
@@ -314,7 +383,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       {
         title: '',
         key: 'operate',
-        width: 140,
+        width: 200,
         fixed: 'right',
         render: (_, record) => {
           const sub = record?.subscription;
@@ -325,6 +394,15 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           const isCancelled = sub?.status === 'cancelled';
           return (
             <Space>
+              <Button
+                size='small'
+                type='primary'
+                theme='light'
+                disabled={isCancelled}
+                onClick={() => openAdjust(sub)}
+              >
+                {t('调整')}
+              </Button>
               <Button
                 size='small'
                 type='warning'
@@ -426,6 +504,143 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
           size='middle'
         />
       </div>
+
+      {/* 调整订阅弹窗 */}
+      <Modal
+        visible={adjustVisible}
+        title={t('调整订阅')}
+        centered
+        width={520}
+        onCancel={() => {
+          setAdjustVisible(false);
+          setAdjustSub(null);
+        }}
+        footer={null}
+        closeOnEsc
+      >
+        {adjustSub && (
+          <Form
+            onSubmit={submitAdjust}
+            initValues={{
+              adjust_days: 0,
+              set_end_date: '',
+              modify_quota: false,
+              set_amount_total: Number(
+                quotaToDisplayAmount(adjustSub.amount_total || 0).toFixed(2),
+              ),
+              modify_used: false,
+              set_amount_used: Number(
+                quotaToDisplayAmount(adjustSub.amount_used || 0).toFixed(2),
+              ),
+              reason: '',
+            }}
+          >
+            {({ values }) => (
+              <>
+                <div className='mb-3 p-3 rounded' style={{ background: 'var(--semi-color-fill-0)' }}>
+                  <Text size='small' type='tertiary'>
+                    {t('当前有效期')}: {formatTs(adjustSub.start_time)} ~ {formatTs(adjustSub.end_time)}
+                  </Text>
+                  <br />
+                  <Text size='small' type='tertiary'>
+                    {t('当前额度')}: ${quotaToDisplayAmount(adjustSub.amount_used || 0).toFixed(2)} / ${quotaToDisplayAmount(adjustSub.amount_total || 0).toFixed(2)}
+                  </Text>
+                </div>
+
+                <Form.RadioGroup
+                  field='_time_mode'
+                  label={t('有效期调整方式')}
+                  type='button'
+                  initValue={adjustMode}
+                  onChange={(e) => setAdjustMode(e.target.value)}
+                  options={[
+                    { label: t('增减天数'), value: 'days' },
+                    { label: t('指定日期'), value: 'date' },
+                    { label: t('不调整'), value: 'none' },
+                  ]}
+                  style={{ marginBottom: 12 }}
+                />
+
+                {adjustMode === 'days' && (
+                  <Form.InputNumber
+                    field='adjust_days'
+                    label={t('增减天数')}
+                    extraText={t('正数延长，负数缩短，如 7 表示延长7天，-3 表示缩短3天')}
+                    style={{ width: '100%' }}
+                  />
+                )}
+
+                {adjustMode === 'date' && (
+                  <Form.DatePicker
+                    field='set_end_date'
+                    label={t('指定结束日期')}
+                    type='dateTime'
+                    style={{ width: '100%' }}
+                  />
+                )}
+
+                <Form.Switch
+                  field='modify_quota'
+                  label={t('修改总额度')}
+                />
+                {values.modify_quota && (
+                  <Form.InputNumber
+                    field='set_amount_total'
+                    label={t('总额度') + ' ($)'}
+                    min={0}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    extraText={`${t('原生额度')}: ${displayAmountToQuota(values.set_amount_total || 0)}`}
+                  />
+                )}
+
+                <Form.Switch
+                  field='modify_used'
+                  label={t('修改已用额度')}
+                />
+                {values.modify_used && (
+                  <Form.InputNumber
+                    field='set_amount_used'
+                    label={t('已用额度') + ' ($)'}
+                    min={0}
+                    precision={2}
+                    style={{ width: '100%' }}
+                    extraText={`${t('原生额度')}: ${displayAmountToQuota(values.set_amount_used || 0)}`}
+                  />
+                )}
+
+                <Form.TextArea
+                  field='reason'
+                  label={t('调整原因')}
+                  placeholder={t('如：系统维护补偿、续费、用户申请等')}
+                  maxCount={200}
+                  rows={2}
+                  style={{ marginTop: 8 }}
+                />
+
+                <div className='flex justify-end gap-2 mt-4'>
+                  <Button
+                    onClick={() => {
+                      setAdjustVisible(false);
+                      setAdjustSub(null);
+                    }}
+                  >
+                    {t('取消')}
+                  </Button>
+                  <Button
+                    type='primary'
+                    theme='solid'
+                    htmlType='submit'
+                    loading={adjustLoading}
+                  >
+                    {t('确认调整')}
+                  </Button>
+                </div>
+              </>
+            )}
+          </Form>
+        )}
+      </Modal>
     </SideSheet>
   );
 };

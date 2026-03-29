@@ -49,6 +49,9 @@ import OAuth2Callback from './components/auth/OAuth2Callback';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
+import QuotaCardPage from './pages/QuotaCard';
+import UsageStatsPage from './pages/UsageStats';
+import MySubscriptionPage from './pages/MySubscription';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -161,6 +164,30 @@ function App() {
             <AdminRoute>
               <Redemption />
             </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/quota-card'
+          element={
+            <AdminRoute>
+              <QuotaCardPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/usage-stats'
+          element={
+            <PrivateRoute>
+              <UsageStatsPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/my-subscription'
+          element={
+            <PrivateRoute>
+              <MySubscriptionPage />
+            </PrivateRoute>
           }
         />
         <Route

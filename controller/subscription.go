@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -144,6 +146,16 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	if req.Plan.ManualDailyResetLimit < 0 {
+		req.Plan.ManualDailyResetLimit = 0
+	}
+	if req.Plan.WeeklyQuotaLimit < 0 {
+		req.Plan.WeeklyQuotaLimit = 0
+	}
+	// 周限制仅在重置周期=每天时有意义，其他周期自动清零
+	if model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod) != model.SubscriptionResetDaily {
+		req.Plan.WeeklyQuotaLimit = 0
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -207,6 +219,16 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "总额度不能为负数")
 		return
 	}
+	if req.Plan.ManualDailyResetLimit < 0 {
+		req.Plan.ManualDailyResetLimit = 0
+	}
+	if req.Plan.WeeklyQuotaLimit < 0 {
+		req.Plan.WeeklyQuotaLimit = 0
+	}
+	// 周限制仅在重置周期=每天时有意义，其他周期自动清零
+	if model.NormalizeResetPeriod(req.Plan.QuotaResetPeriod) != model.SubscriptionResetDaily {
+		req.Plan.WeeklyQuotaLimit = 0
+	}
 	req.Plan.UpgradeGroup = strings.TrimSpace(req.Plan.UpgradeGroup)
 	if req.Plan.UpgradeGroup != "" {
 		if _, ok := ratio_setting.GetGroupRatioCopy()[req.Plan.UpgradeGroup]; !ok {
@@ -239,6 +261,8 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"manual_daily_reset_limit":   req.Plan.ManualDailyResetLimit,
+			"weekly_quota_limit":         req.Plan.WeeklyQuotaLimit,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
@@ -377,6 +401,118 @@ func AdminDeleteUserSubscription(c *gin.Context) {
 	}
 	if msg != "" {
 		common.ApiSuccess(c, gin.H{"message": msg})
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
+type AdminAdjustUserSubscriptionRequest struct {
+	// 有效期调整：正数延长天数，负数缩短天数，0不变
+	AdjustDays int `json:"adjust_days"`
+	// 精确设置结束时间（Unix 时间戳），优先级高于 AdjustDays，0表示不使用
+	SetEndTime int64 `json:"set_end_time"`
+	// 额度调整：精确设置总额度（原生值），-1表示不修改
+	SetAmountTotal int64 `json:"set_amount_total"`
+	// 已用额度调整：精确设置已用额度（原生值），-1表示不修改
+	SetAmountUsed int64 `json:"set_amount_used"`
+	// 调整原因备注
+	Reason string `json:"reason"`
+}
+
+func AdminAdjustUserSubscription(c *gin.Context) {
+	subId, _ := strconv.Atoi(c.Param("id"))
+	if subId <= 0 {
+		common.ApiErrorMsg(c, "无效的订阅ID")
+		return
+	}
+	var req AdminAdjustUserSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiErrorMsg(c, "参数错误")
+		return
+	}
+	if req.AdjustDays == 0 && req.SetEndTime == 0 && req.SetAmountTotal == -1 && req.SetAmountUsed == -1 {
+		common.ApiErrorMsg(c, "未指定任何调整项")
+		return
+	}
+
+	adminId := c.GetInt("id")
+
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		var sub model.UserSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", subId).First(&sub).Error; err != nil {
+			return fmt.Errorf("订阅不存在")
+		}
+
+		changes := []string{}
+
+		// 有效期调整
+		if req.SetEndTime > 0 {
+			oldEnd := sub.EndTime
+			sub.EndTime = req.SetEndTime
+			changes = append(changes, fmt.Sprintf("结束时间: %s → %s",
+				time.Unix(oldEnd, 0).Format("2006-01-02 15:04"),
+				time.Unix(req.SetEndTime, 0).Format("2006-01-02 15:04")))
+		} else if req.AdjustDays != 0 {
+			oldEnd := sub.EndTime
+			sub.EndTime += int64(req.AdjustDays) * 86400
+			if sub.EndTime < sub.StartTime {
+				sub.EndTime = sub.StartTime
+			}
+			changes = append(changes, fmt.Sprintf("结束时间: %s → %s (%+d天)",
+				time.Unix(oldEnd, 0).Format("2006-01-02 15:04"),
+				time.Unix(sub.EndTime, 0).Format("2006-01-02 15:04"),
+				req.AdjustDays))
+		}
+
+		// 过期的订阅如果延长后变为有效，自动恢复 active 状态
+		now := common.GetTimestamp()
+		if sub.Status == "expired" && sub.EndTime > now {
+			sub.Status = "active"
+			changes = append(changes, "状态: expired → active")
+		}
+		// 如果缩短后变为过期
+		if sub.Status == "active" && sub.EndTime <= now {
+			sub.Status = "expired"
+			changes = append(changes, "状态: active → expired")
+		}
+
+		// 总额度调整
+		if req.SetAmountTotal >= 0 {
+			oldTotal := sub.AmountTotal
+			sub.AmountTotal = req.SetAmountTotal
+			changes = append(changes, fmt.Sprintf("总额度: %d → %d", oldTotal, req.SetAmountTotal))
+		}
+
+		// 已用额度调整
+		if req.SetAmountUsed >= 0 {
+			oldUsed := sub.AmountUsed
+			sub.AmountUsed = req.SetAmountUsed
+			changes = append(changes, fmt.Sprintf("已用额度: %d → %d", oldUsed, req.SetAmountUsed))
+		}
+
+		if len(changes) == 0 {
+			return nil
+		}
+
+		sub.UpdatedAt = now
+		if err := tx.Save(&sub).Error; err != nil {
+			return err
+		}
+
+		reason := req.Reason
+		if reason == "" {
+			reason = "管理员调整"
+		}
+		logContent := fmt.Sprintf("管理员(ID:%d)调整订阅(ID:%d): %s | 原因: %s",
+			adminId, subId, strings.Join(changes, "; "), reason)
+		model.RecordLog(sub.UserId, model.LogTypeTopup, logContent)
+
+		return nil
+	})
+
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
 		return
 	}
 	common.ApiSuccess(c, nil)

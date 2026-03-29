@@ -36,6 +36,7 @@ import { StatusContext } from '../../context/Status';
 
 import RechargeCard from './RechargeCard';
 import InvitationCard from './InvitationCard';
+import QuotaCardRedeemCard from './QuotaCardRedeemCard';
 import TransferModal from './modals/TransferModal';
 import PaymentConfirmModal from './modals/PaymentConfirmModal';
 import TopupHistoryModal from './modals/TopupHistoryModal';
@@ -781,7 +782,8 @@ const TopUp = () => {
 
       {/* 主布局区域 */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
-        <RechargeCard
+        <div className='space-y-6'>
+          <RechargeCard
           t={t}
           enableOnlineTopUp={enableOnlineTopUp}
           enableStripeTopUp={enableStripeTopUp}
@@ -827,6 +829,8 @@ const TopUp = () => {
           allSubscriptions={allSubscriptions}
           reloadSubscriptionSelf={getSubscriptionSelf}
         />
+          <QuotaCardRedeemCard t={t} onRedeemSuccess={getUserQuota} />
+        </div>
         <InvitationCard
           t={t}
           userState={userState}

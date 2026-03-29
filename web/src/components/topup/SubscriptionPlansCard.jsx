@@ -17,12 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   Badge,
   Button,
   Card,
   Divider,
+  Popconfirm,
+  Progress,
   Select,
   Skeleton,
   Space,
@@ -32,7 +34,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { API, showError, showSuccess, renderQuota } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { Clock, RefreshCw, Sparkles } from 'lucide-react';
 import SubscriptionPurchaseModal from './modals/SubscriptionPurchaseModal';
 import {
   formatSubscriptionDuration,
@@ -89,8 +91,72 @@ const SubscriptionPlansCard = ({
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [detailedSubs, setDetailedSubs] = useState([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState({});
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
+
+  const loadDetailedSubscriptions = useCallback(async () => {
+    setDetailLoading(true);
+    try {
+      const res = await API.get('/api/subscription/self/detail');
+      if (res.data?.success) {
+        setDetailedSubs(res.data.data || []);
+      }
+    } catch (e) {
+      // fallback: 详细API不可用时不影响基础展示
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (allSubscriptions.length > 0) {
+      loadDetailedSubscriptions();
+    }
+  }, [allSubscriptions, loadDetailedSubscriptions]);
+
+  const handleManualReset = async (subId) => {
+    setResetLoading((prev) => ({ ...prev, [subId]: true }));
+    try {
+      const res = await API.post('/api/subscription/self/manual-reset', {
+        subscription_id: subId,
+      });
+      if (res.data?.success) {
+        showSuccess(t('重置成功'));
+        await loadDetailedSubscriptions();
+        await reloadSubscriptionSelf?.();
+      } else {
+        showError(res.data?.message || t('重置失败'));
+      }
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      setResetLoading((prev) => ({ ...prev, [subId]: false }));
+    }
+  };
+
+  const formatCountdown = (seconds) => {
+    if (!seconds || seconds <= 0) return '--';
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 24) {
+      const d = Math.floor(h / 24);
+      return `${d}${t('天')} ${h % 24}${t('时')}`;
+    }
+    return `${h}${t('时')} ${m}${t('分')}`;
+  };
+
+  const getProgressColor = (percent) => {
+    if (percent >= 85) return 'red';
+    if (percent >= 60) return 'orange';
+    return 'green';
+  };
+
+  const getDetailedSub = (subId) => {
+    return detailedSubs.find((d) => d.subscription?.id === subId);
+  };
 
   const openBuy = (p) => {
     setSelectedPlan(p);
@@ -108,6 +174,7 @@ const SubscriptionPlansCard = ({
     setRefreshing(true);
     try {
       await reloadSubscriptionSelf?.();
+      await loadDetailedSubscriptions();
     } finally {
       setRefreshing(false);
     }
@@ -377,29 +444,24 @@ const SubscriptionPlansCard = ({
             {hasAnySubscription ? (
               <>
                 <Divider margin={8} />
-                <div className='max-h-64 overflow-y-auto pr-1 semi-table-body'>
+                <div className='max-h-[480px] overflow-y-auto pr-1 semi-table-body'>
                   {allSubscriptions.map((sub, subIndex) => {
                     const isLast = subIndex === allSubscriptions.length - 1;
                     const subscription = sub.subscription;
-                    const totalAmount = Number(subscription?.amount_total || 0);
-                    const usedAmount = Number(subscription?.amount_used || 0);
-                    const remainAmount =
-                      totalAmount > 0
-                        ? Math.max(0, totalAmount - usedAmount)
-                        : 0;
                     const planTitle =
                       planTitleMap.get(subscription?.plan_id) || '';
                     const remainDays = getRemainingDays(sub);
-                    const usagePercent = getUsagePercent(sub);
                     const now = Date.now() / 1000;
                     const isExpired = (subscription?.end_time || 0) < now;
                     const isCancelled = subscription?.status === 'cancelled';
                     const isActive =
                       subscription?.status === 'active' && !isExpired;
 
+                    const detail = getDetailedSub(subscription?.id);
+
                     return (
                       <div key={subscription?.id || subIndex}>
-                        {/* 订阅概要 */}
+                        {/* 订阅头部：名称 + 状态 + 剩余天数 */}
                         <div className='flex items-center justify-between text-xs mb-2'>
                           <div className='flex items-center gap-2'>
                             <span className='font-medium'>
@@ -409,19 +471,18 @@ const SubscriptionPlansCard = ({
                             </span>
                             {isActive ? (
                               <Tag
-                                color='white'
+                                color='green'
                                 size='small'
                                 shape='circle'
-                                prefixIcon={<Badge dot type='success' />}
                               >
-                                {t('生效')}
+                                {t('生效中')}
                               </Tag>
                             ) : isCancelled ? (
-                              <Tag color='white' size='small' shape='circle'>
-                                {t('已作废')}
+                              <Tag color='red' size='small' shape='circle'>
+                                {t('已取消')}
                               </Tag>
                             ) : (
-                              <Tag color='white' size='small' shape='circle'>
+                              <Tag color='grey' size='small' shape='circle'>
                                 {t('已过期')}
                               </Tag>
                             )}
@@ -432,7 +493,9 @@ const SubscriptionPlansCard = ({
                             </span>
                           )}
                         </div>
-                        <div className='text-xs text-gray-500 mb-2'>
+
+                        {/* 到期时间 */}
+                        <div className='text-xs text-gray-500 mb-3'>
                           {isActive
                             ? t('至')
                             : isCancelled
@@ -442,27 +505,172 @@ const SubscriptionPlansCard = ({
                             (subscription?.end_time || 0) * 1000,
                           ).toLocaleString()}
                         </div>
-                        <div className='text-xs text-gray-500 mb-2'>
-                          {t('总额度')}:{' '}
-                          {totalAmount > 0 ? (
-                            <Tooltip
-                              content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
-                            >
-                              <span>
-                                {renderQuota(usedAmount)}/
-                                {renderQuota(totalAmount)} · {t('剩余')}{' '}
-                                {renderQuota(remainAmount)}
-                              </span>
-                            </Tooltip>
-                          ) : (
-                            t('不限')
-                          )}
-                          {totalAmount > 0 && (
-                            <span className='ml-2'>
-                              {t('已用')} {usagePercent}%
-                            </span>
-                          )}
-                        </div>
+
+                        {/* 当前周期额度进度条 */}
+                        {detail ? (
+                          <>
+                            {detail.quota_per_cycle > 0 ? (
+                              <div className='mb-3'>
+                                <div className='flex justify-between items-center mb-1'>
+                                  <Text size='small'>{t('当前周期额度')}</Text>
+                                  <Text size='small' strong>
+                                    ${(detail.quota_used / 500000).toFixed(2)} / $
+                                    {detail.quota_per_cycle_display?.toFixed(2)}
+                                  </Text>
+                                </div>
+                                <Progress
+                                  percent={Math.min(detail.usage_percent || 0, 100)}
+                                  showInfo
+                                  stroke={getProgressColor(detail.usage_percent || 0)}
+                                  size='default'
+                                  format={(p) => `${p.toFixed(1)}%`}
+                                />
+                              </div>
+                            ) : (
+                              <div className='mb-3'>
+                                <Tag color='blue' size='small'>
+                                  {t('无限额度')}
+                                </Tag>
+                              </div>
+                            )}
+
+                            {/* 本期消耗费用 */}
+                            {detail.quota_per_cycle > 0 && (
+                              <div className='mb-3'>
+                                <div className='flex justify-between items-center mb-1'>
+                                  <Text size='small'>{t('本期消耗费用')}</Text>
+                                  <Text size='small' strong>
+                                    ${(detail.quota_used / 500000).toFixed(2)} / $
+                                    {(detail.quota_per_cycle / 500000).toFixed(2)}
+                                  </Text>
+                                </div>
+                                <Progress
+                                  percent={Math.min(detail.usage_percent || 0, 100)}
+                                  showInfo
+                                  stroke={getProgressColor(detail.usage_percent || 0)}
+                                  size='small'
+                                  format={(p) => `${p.toFixed(1)}%`}
+                                />
+                              </div>
+                            )}
+
+                            {/* 本周消耗限制 */}
+                            {detail.weekly_quota_enabled && (
+                              <div className='mb-3'>
+                                <div className='flex justify-between items-center mb-1'>
+                                  <Text size='small'>{t('本周消耗限制')}</Text>
+                                  <Text size='small' strong>
+                                    ${(detail.weekly_quota_used / 500000).toFixed(2)} / $
+                                    {detail.weekly_quota_limit_display?.toFixed(2)}
+                                  </Text>
+                                </div>
+                                <Progress
+                                  percent={Math.min(detail.weekly_usage_percent || 0, 100)}
+                                  showInfo
+                                  stroke={getProgressColor(detail.weekly_usage_percent || 0)}
+                                  size='small'
+                                  format={(p) => `${p.toFixed(1)}%`}
+                                />
+                              </div>
+                            )}
+
+                            {/* 重置周期 + 下次重置倒计时 */}
+                            <div className='space-y-2 text-sm'>
+                              {detail.reset_period &&
+                                detail.reset_period !== 'never' && (
+                                  <div className='flex items-center gap-2'>
+                                    <Clock size={14} className='text-gray-400' />
+                                    <Text type='tertiary' size='small'>
+                                      {t('重置周期')}: {detail.reset_period_label}
+                                    </Text>
+                                    {detail.next_reset_countdown > 0 && (
+                                      <Text type='tertiary' size='small'>
+                                        · {t('下次重置')}:{' '}
+                                        {formatCountdown(detail.next_reset_countdown)}
+                                      </Text>
+                                    )}
+                                  </div>
+                                )}
+
+                              {/* 手动重置 */}
+                              {detail.manual_reset_enabled && (
+                                <div className='flex items-center justify-between'>
+                                  <div className='flex items-center gap-2'>
+                                    <RefreshCw size={14} className='text-gray-400' />
+                                    <Text type='tertiary' size='small'>
+                                      {t('今日手动重置')}:{' '}
+                                      {detail.manual_reset_limit -
+                                        detail.manual_reset_remaining}
+                                      /{detail.manual_reset_limit} {t('次已用')}
+                                    </Text>
+                                  </div>
+                                  <Popconfirm
+                                    title={t('确认重置')}
+                                    content={t(
+                                      '重置后当前周期已用额度将归零，确认继续？',
+                                    )}
+                                    onConfirm={() =>
+                                      handleManualReset(subscription?.id)
+                                    }
+                                    okText={t('确认')}
+                                    cancelText={t('取消')}
+                                  >
+                                    <Button
+                                      size='small'
+                                      theme='light'
+                                      type='warning'
+                                      loading={
+                                        resetLoading[subscription?.id]
+                                      }
+                                      disabled={
+                                        detail.manual_reset_remaining <= 0 ||
+                                        !isActive
+                                      }
+                                    >
+                                      {t('重置额度')}
+                                    </Button>
+                                  </Popconfirm>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          /* 详细数据未加载时的基础展示 */
+                          <div className='text-xs text-gray-500 mb-2'>
+                            {(() => {
+                              const totalAmount = Number(subscription?.amount_total || 0);
+                              const usedAmount = Number(subscription?.amount_used || 0);
+                              const remainAmount =
+                                totalAmount > 0
+                                  ? Math.max(0, totalAmount - usedAmount)
+                                  : 0;
+                              const usagePercent = getUsagePercent(sub);
+                              return (
+                                <>
+                                  {t('总额度')}:{' '}
+                                  {totalAmount > 0 ? (
+                                    <Tooltip
+                                      content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
+                                    >
+                                      <span>
+                                        {renderQuota(usedAmount)}/
+                                        {renderQuota(totalAmount)} · {t('剩余')}{' '}
+                                        {renderQuota(remainAmount)}
+                                      </span>
+                                    </Tooltip>
+                                  ) : (
+                                    t('不限')
+                                  )}
+                                  {totalAmount > 0 && (
+                                    <span className='ml-2'>
+                                      {t('已用')} {usagePercent}%
+                                    </span>
+                                  )}
+                                </>
+                              );
+                            })()}
+                          </div>
+                        )}
                         {!isLast && <Divider margin={12} />}
                       </div>
                     );

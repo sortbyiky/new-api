@@ -864,6 +864,7 @@
     "启用数据看板（实验性）": "Bật bảng dữ liệu (thử nghiệm)",
     "启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。": "Khi được bật, nội dung yêu cầu tùy chỉnh của bạn sẽ được sử dụng cho các yêu cầu API và cài đặt tham số trong bảng cấu hình mô hình sẽ bị bỏ qua.",
     "启用状态": "Trạng thái bật",
+    "推荐套餐": "Gói đề xuất",
     "启用用户模型请求速率限制（可能会影响高并发性能）": "Bật giới hạn tốc độ yêu cầu mô hình người dùng (có thể ảnh hưởng đến hiệu suất đồng thời cao)",
     "启用磁盘缓存": "Bật bộ nhớ đệm đĩa",
     "启用磁盘缓存后，大请求体将临时存储到磁盘而非内存，可显著降低内存占用，适用于处理包含大量图片/文件的请求。建议在 SSD 环境下使用。": "Khi bật bộ nhớ đệm đĩa, body yêu cầu lớn sẽ được lưu tạm trên đĩa thay vì bộ nhớ, giảm đáng kể mức sử dụng bộ nhớ. Phù hợp xử lý yêu cầu chứa nhiều hình ảnh/tệp. Khuyến nghị sử dụng trên SSD.",

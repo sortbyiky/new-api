@@ -872,6 +872,7 @@
     "启用数据看板（实验性）": "Activer le tableau de bord des données (expérimental)",
     "启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。": "Lorsqu'il est activé, votre corps de requête personnalisé sera utilisé pour les requêtes API et les paramètres du panneau de configuration du modèle seront ignorés.",
     "启用状态": "Statut d'activation",
+    "推荐套餐": "Plan recommandé",
     "启用用户模型请求速率限制（可能会影响高并发性能）": "Activer la limite de débit de requête de modèle utilisateur (peut affecter les performances à haute concurrence)",
     "启用磁盘缓存": "Activer le cache disque",
     "启用磁盘缓存后，大请求体将临时存储到磁盘而非内存，可显著降低内存占用，适用于处理包含大量图片/文件的请求。建议在 SSD 环境下使用。": "Lorsque le cache disque est activé, les grands corps de requête sont temporairement stockés sur le disque au lieu de la mémoire, ce qui réduit considérablement l'utilisation de la mémoire. Adapté au traitement des requêtes contenant de nombreuses images/fichiers. Recommandé pour les environnements SSD.",

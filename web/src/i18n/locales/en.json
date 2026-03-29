@@ -877,6 +877,7 @@
     "启用数据看板（实验性）": "Enable data dashboard (experimental)",
     "启用此模式后，将使用您自定义的请求体发送API请求，模型配置面板的参数设置将被忽略。": "After enabling this mode, your custom request body will be used to send API requests, and parameter settings in the model configuration panel will be ignored.",
     "启用状态": "Enabled Status",
+    "推荐套餐": "Recommended Plan",
     "启用用户模型请求速率限制（可能会影响高并发性能）": "Enable user model request rate limit (may affect high concurrency performance)",
     "启用磁盘缓存": "Enable Disk Cache",
     "启用磁盘缓存后，大请求体将临时存储到磁盘而非内存，可显著降低内存占用，适用于处理包含大量图片/文件的请求。建议在 SSD 环境下使用。": "When enabled, large request bodies are temporarily stored on disk instead of memory, significantly reducing memory usage. Suitable for requests with large images/files. SSD recommended.",

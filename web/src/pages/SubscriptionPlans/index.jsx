@@ -246,7 +246,7 @@ const SubscriptionPlansPage = () => {
     const totalAmount = Number(plan?.total_amount || 0);
     const price = Number(plan?.price_amount || 0);
     const displayPrice = price.toFixed(Number.isInteger(price) ? 0 : 2);
-    const isPopular = index === 0 && plans.length > 1;
+    const isPopular = plan?.is_recommended === true;
     const limit = Number(plan?.max_purchase_per_user || 0);
     const count = getPlanPurchaseCount(plan?.id);
     const reached = limit > 0 && count >= limit;
@@ -311,27 +311,7 @@ const SubscriptionPlansPage = () => {
     ].filter(Boolean);
 
     return (
-      <div
-        key={plan?.id}
-        className={`relative group ${isPopular ? 'lg:-mt-2 lg:mb-2' : ''}`}
-      >
-        {isPopular && (
-          <div className='absolute -top-3 left-1/2 -translate-x-1/2 z-10'>
-            <Tag
-              color='purple'
-              shape='circle'
-              size='large'
-              style={{
-                padding: '2px 16px',
-                fontWeight: 600,
-                boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
-              }}
-            >
-              <Sparkles size={12} className='mr-1' />
-              {t('推荐')}
-            </Tag>
-          </div>
-        )}
+      <div key={plan?.id} className='relative group'>
         <Card
           className={`!rounded-2xl transition-all duration-300 h-full
             hover:shadow-xl hover:-translate-y-1
@@ -341,8 +321,28 @@ const SubscriptionPlansPage = () => {
           <div className='flex flex-col h-full'>
             {/* 顶部区域 */}
             <div
-              className={`px-6 pt-8 pb-5 ${isPopular ? 'rounded-t-[14px]' : 'rounded-t-2xl'}`}
+              className={`px-6 pt-6 pb-5 ${isPopular ? 'rounded-t-[14px]' : 'rounded-t-2xl'}`}
             >
+              {/* 推荐标签 */}
+              {isPopular && (
+                <div className='mb-3'>
+                  <Tag
+                    color='purple'
+                    shape='circle'
+                    size='small'
+                    style={{
+                      padding: '1px 10px',
+                      fontWeight: 600,
+                      background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                      color: '#fff',
+                      border: 'none',
+                    }}
+                  >
+                    <Sparkles size={10} className='mr-1' />
+                    {t('推荐')}
+                  </Tag>
+                </div>
+              )}
               <Title
                 heading={4}
                 style={{ margin: '0 0 4px', color: '#1f2937' }}
@@ -381,16 +381,15 @@ const SubscriptionPlansPage = () => {
                 {benefits.map((b, i) => (
                   <div key={i} className='flex items-center gap-3'>
                     <div
-                      className={`flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center`}
-                      style={{ opacity: 0.15 }}
+                      className={`relative flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center`}
                     >
+                      <div
+                        className={`absolute inset-0 rounded-lg bg-gradient-to-br ${gradient}`}
+                        style={{ opacity: 0.12 }}
+                      />
+                      <span className='relative text-gray-700'>{b.icon}</span>
                     </div>
-                    <div
-                      className={`absolute flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center`}
-                    >
-                      <span className='text-gray-700'>{b.icon}</span>
-                    </div>
-                    <div className='ml-8 min-w-0'>
+                    <div className='min-w-0'>
                       <div className='text-sm font-medium text-gray-800 truncate'>
                         {b.label}
                       </div>
@@ -422,11 +421,7 @@ const SubscriptionPlansPage = () => {
                   size='large'
                   block
                   disabled={reached}
-                  className={`!rounded-xl !h-12 !font-semibold !text-base ${
-                    isPopular
-                      ? '!bg-gradient-to-r !from-purple-500 !to-violet-600 hover:!from-purple-600 hover:!to-violet-700'
-                      : ''
-                  }`}
+                  className='!rounded-xl !h-12 !font-semibold !text-base'
                   style={
                     isPopular
                       ? {

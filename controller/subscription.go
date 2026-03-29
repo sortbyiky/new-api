@@ -263,6 +263,7 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
 			"manual_daily_reset_limit":   req.Plan.ManualDailyResetLimit,
 			"weekly_quota_limit":         req.Plan.WeeklyQuotaLimit,
+			"is_recommended":             req.Plan.IsRecommended,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {

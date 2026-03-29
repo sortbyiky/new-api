@@ -52,6 +52,7 @@ import SetupCheck from './components/layout/SetupCheck';
 import QuotaCardPage from './pages/QuotaCard';
 import UsageStatsPage from './pages/UsageStats';
 import MySubscriptionPage from './pages/MySubscription';
+import SubscriptionPlansPage from './pages/SubscriptionPlans';
 
 const Home = lazy(() => import('./pages/Home'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -187,6 +188,14 @@ function App() {
           element={
             <PrivateRoute>
               <MySubscriptionPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/subscription-plans'
+          element={
+            <PrivateRoute>
+              <SubscriptionPlansPage />
             </PrivateRoute>
           }
         />

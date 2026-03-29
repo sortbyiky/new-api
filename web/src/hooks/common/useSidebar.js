@@ -43,6 +43,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     enabled: true,
     topup: true,
     'my-subscription': true,
+    'subscription-plans': true,
     'usage-stats': true,
     personal: true,
   },

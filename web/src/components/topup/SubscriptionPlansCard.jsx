@@ -724,6 +724,7 @@ const SubscriptionPlansCard = ({
                   manualResetLimit > 0
                     ? `${t('手动重置')}: ${manualResetLimit} ${t('次/天')}`
                     : null;
+                const hasResetPeriod = formatSubscriptionResetPeriod(plan, t) !== t('不重置');
                 const planBenefits = [
                   {
                     label: `${t('有效期')}: ${formatSubscriptionDuration(plan, t)}`,
@@ -735,12 +736,14 @@ const SubscriptionPlansCard = ({
                         tooltip: `${t('原生额度')}：${totalAmount}`,
                       }
                     : null,
-                  totalAmount > 0
-                    ? {
-                        label: totalLabel,
-                        tooltip: `${t('原生额度')}：${totalAmount}`,
-                      }
-                    : { label: totalLabel },
+                  !hasResetPeriod
+                    ? totalAmount > 0
+                      ? {
+                          label: totalLabel,
+                          tooltip: `${t('原生额度')}：${totalAmount}`,
+                        }
+                      : { label: totalLabel }
+                    : null,
                   weeklyLabel
                     ? {
                         label: weeklyLabel,

@@ -52,6 +52,7 @@ const routerMap = {
   'quota-card': '/console/quota-card',
   'usage-stats': '/console/usage-stats',
   'my-subscription': '/console/my-subscription',
+  'subscription-plans': '/console/subscription-plans',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -136,6 +137,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('我的订阅'),
         itemKey: 'my-subscription',
         to: '/my-subscription',
+      },
+      {
+        text: t('订阅套餐'),
+        itemKey: 'subscription-plans',
+        to: '/subscription-plans',
       },
       {
         text: t('消费统计'),

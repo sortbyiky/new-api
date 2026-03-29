@@ -18,7 +18,6 @@ import {
   showSuccess,
   renderQuota,
 } from '../../helpers';
-import { getCurrencyConfig } from '../../helpers/render';
 import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
@@ -245,12 +244,8 @@ const SubscriptionPlansPage = () => {
   const renderPlanCard = (p, index) => {
     const plan = p?.plan;
     const totalAmount = Number(plan?.total_amount || 0);
-    const { symbol, rate } = getCurrencyConfig();
     const price = Number(plan?.price_amount || 0);
-    const convertedPrice = price * rate;
-    const displayPrice = convertedPrice.toFixed(
-      Number.isInteger(convertedPrice) ? 0 : 2,
-    );
+    const displayPrice = price.toFixed(Number.isInteger(price) ? 0 : 2);
     const isPopular = index === 0 && plans.length > 1;
     const limit = Number(plan?.max_purchase_per_user || 0);
     const count = getPlanPurchaseCount(plan?.id);
@@ -344,33 +339,40 @@ const SubscriptionPlansPage = () => {
           bodyStyle={{ padding: 0 }}
         >
           <div className='flex flex-col h-full'>
-            {/* 顶部渐变区域 */}
+            {/* 顶部区域 */}
             <div
-              className={`bg-gradient-to-br ${gradient} px-6 pt-8 pb-6 text-white ${isPopular ? 'rounded-t-[14px]' : 'rounded-t-2xl'}`}
+              className={`px-6 pt-8 pb-5 ${isPopular ? 'rounded-t-[14px]' : 'rounded-t-2xl'}`}
             >
-              <Text
-                className='!text-white/80 text-xs font-medium uppercase tracking-wider'
-                style={{ color: 'rgba(255,255,255,0.8)' }}
-              >
-                {plan?.subtitle || t('订阅套餐')}
-              </Text>
               <Title
                 heading={4}
-                className='!text-white !mt-1 !mb-4'
-                style={{ color: '#fff', margin: '4px 0 16px' }}
+                style={{ margin: '0 0 4px', color: '#1f2937' }}
                 ellipsis={{ rows: 1, showTooltip: true }}
               >
                 {plan?.title || t('订阅套餐')}
               </Title>
-              <div className='flex items-baseline gap-1'>
-                <span className='text-lg font-medium opacity-80'>{symbol}</span>
-                <span className='text-4xl font-extrabold tracking-tight'>
+              {plan?.subtitle && (
+                <Text
+                  type='tertiary'
+                  size='small'
+                  style={{ display: 'block', marginBottom: 4 }}
+                  ellipsis={{ rows: 1, showTooltip: true }}
+                >
+                  {plan.subtitle}
+                </Text>
+              )}
+              <div className='flex items-baseline gap-1 mt-4'>
+                <span className='text-lg font-medium text-gray-500'>¥</span>
+                <span className='text-4xl font-extrabold tracking-tight text-gray-900'>
                   {displayPrice}
                 </span>
-                <span className='text-sm opacity-70 ml-1'>
+                <span className='text-sm text-gray-400 ml-1'>
                   / {formatSubscriptionDuration(plan, t)}
                 </span>
               </div>
+            </div>
+
+            <div className='px-6'>
+              <div className={`h-1 rounded-full bg-gradient-to-r ${gradient}`} />
             </div>
 
             {/* 权益列表 */}

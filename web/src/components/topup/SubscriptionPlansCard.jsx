@@ -710,17 +710,44 @@ const SubscriptionPlansCard = ({
                   formatSubscriptionResetPeriod(plan, t) === t('不重置')
                     ? null
                     : `${t('额度重置')}: ${formatSubscriptionResetPeriod(plan, t)}`;
+                const resetAmountLabel =
+                  formatSubscriptionResetPeriod(plan, t) !== t('不重置') && totalAmount > 0
+                    ? `${t('每次重置')}: ${renderQuota(totalAmount)}`
+                    : null;
+                const weeklyQuotaLimit = Number(plan?.weekly_quota_limit || 0);
+                const weeklyLabel =
+                  weeklyQuotaLimit > 0
+                    ? `${t('周消耗上限')}: ${renderQuota(weeklyQuotaLimit)}`
+                    : null;
+                const manualResetLimit = Number(plan?.manual_daily_reset_limit || 0);
+                const manualResetLabel =
+                  manualResetLimit > 0
+                    ? `${t('手动重置')}: ${manualResetLimit} ${t('次/天')}`
+                    : null;
                 const planBenefits = [
                   {
                     label: `${t('有效期')}: ${formatSubscriptionDuration(plan, t)}`,
                   },
                   resetLabel ? { label: resetLabel } : null,
+                  resetAmountLabel
+                    ? {
+                        label: resetAmountLabel,
+                        tooltip: `${t('原生额度')}：${totalAmount}`,
+                      }
+                    : null,
                   totalAmount > 0
                     ? {
                         label: totalLabel,
                         tooltip: `${t('原生额度')}：${totalAmount}`,
                       }
                     : { label: totalLabel },
+                  weeklyLabel
+                    ? {
+                        label: weeklyLabel,
+                        tooltip: `${t('原生额度')}：${weeklyQuotaLimit}`,
+                      }
+                    : null,
+                  manualResetLabel ? { label: manualResetLabel } : null,
                   limitLabel ? { label: limitLabel } : null,
                   upgradeLabel ? { label: upgradeLabel } : null,
                 ].filter(Boolean);

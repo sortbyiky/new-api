@@ -3956,6 +3956,8 @@
     "分": "phút",
     "每日手动重置次数": "Số lần đặt lại thủ công mỗi ngày",
     "用户每天可手动重置额度的次数上限，0表示不允许": "Số lần tối đa người dùng có thể đặt lại hạn mức mỗi ngày. 0 = không cho phép",
+    "每次重置": "Số tiền đặt lại",
+    "次/天": "lần/ngày",
     "周消耗上限": "Giới hạn tiêu thụ tuần",
     "每周最多可消耗的额度（0表示不限）": "Hạn mức tối đa có thể tiêu thụ mỗi tuần (0 = không giới hạn)",
     "本周消耗限制": "Giới hạn tuần này",

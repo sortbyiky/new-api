@@ -3455,6 +3455,8 @@
     "分": "m",
     "每日手动重置次数": "Daily Manual Reset Limit",
     "用户每天可手动重置额度的次数上限，0表示不允许": "Max times a user can manually reset quota per day. 0 means not allowed",
+    "每次重置": "Reset Amount",
+    "次/天": "times/day",
     "周消耗上限": "Weekly Consumption Limit",
     "每周最多可消耗的额度（0表示不限）": "Max quota consumable per week (0 = unlimited)",
     "本周消耗限制": "This Week's Limit",
